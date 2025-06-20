@@ -1,6 +1,6 @@
 {
-  "name": "TeleDrive Motor Controller",
-  "short_name": "TeleDrive",
+  "name": "RotoDrive Motor Controller",
+  "short_name": "RotoDrive",
   "start_url": "/",
   "id": "/",
   "icons": [
@@ -20,6 +20,6 @@
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone",
-  "description": "Companion PWA for TeleDrive.",
+  "description": "Companion PWA for RotoDrive.",
   "categories": ["tools"]
 }

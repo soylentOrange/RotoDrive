@@ -6,6 +6,8 @@
 .vscode
 
 .DS_Store
+.DS_Store.gz
+data/.DS_Store.gz
 
 # Prerequisites
 *.d
