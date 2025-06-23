@@ -17,8 +17,8 @@ EventHandler eventHandler(espNetwork);
 WebServerAPI webServerAPI(webServer);
 WebSite webSite(webServer);
 LED led;
-Stepper stepper;
-FastAccelStepperEngine engine = FastAccelStepperEngine();
+TwaiCan canBus(CAN_TX, CAN_RX);
+Stepper stepper(canBus);
 
 // Allow logging for app via serial
 #if defined(MYCILA_LOGGER_SUPPORT_APP)

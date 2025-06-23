@@ -5,9 +5,9 @@
 #pragma once
 
 #include <ArduinoJson.h>
-#include <FastAccelStepper.h>
-#include <TMC2209.h>
+#include <MKSServoCAN.h>
 #include <TaskSchedulerDeclarations.h>
+#include <TwaiCan.h>
 
 #include <functional>
 #include <map>
@@ -15,8 +15,6 @@
 
 #define DECREASING false
 #define INCREASING true
-
-extern FastAccelStepperEngine engine;
 
 class Stepper {
   public:
@@ -61,9 +59,10 @@ class Stepper {
       HOMING,
       HOMED, // only temporarily
       DRIVING,
-      ARRIVED, // only temporarily
-      STOPPED, // only temporarily
-      WARNING, // only temporarily
+      ARRIVED,  // only temporarily
+      STOPPED,  // only temporarily
+      STOPPING, // only temporarily
+      WARNING,  // only temporarily
       ERROR
     };
 
@@ -77,6 +76,7 @@ class Stepper {
       {MotorState::DRIVING, "DRIVING"},
       {MotorState::ARRIVED, "ARRIVED"},
       {MotorState::STOPPED, "STOPPED"},
+      {MotorState::STOPPING, "DRIVING"},
       {MotorState::WARNING, "WARNING"},
       {MotorState::ERROR, "ERROR"}};
 
@@ -90,6 +90,7 @@ class Stepper {
       {MotorState::DRIVING, LED::LEDMode::DRIVING},
       {MotorState::ARRIVED, LED::LEDMode::IDLE},
       {MotorState::STOPPED, LED::LEDMode::IDLE},
+      {MotorState::STOPPING, LED::LEDMode::DRIVING},
       {MotorState::WARNING, LED::LEDMode::IDLE},
       {MotorState::ERROR, LED::LEDMode::ERROR}};
 
@@ -108,20 +109,8 @@ class Stepper {
     };
 
   public:
-    Stepper() {
-      _srHome.setWaiting();
-      _srDiag.setWaiting();
-      _srHoming.setWaiting();
-      _srStandstill.setWaiting();
-
-      // Initialize FastAccelStepper here once
-      engine.init();
-      _stepper = engine.stepperConnectToPin(TMC_STEP);
-      _stepper->setDirectionPin(TMC_DIR);
-      _stepper->setEnablePin(TMC_EN);
-      _stepper->setAutoEnable(true);
-      _stepper->setDelayToEnable(50);
-      _stepper->setDelayToDisable(1000);
+    explicit Stepper(TwaiCan& canBus) : _canBus(&canBus) {
+      //_srStandstill.setWaiting();
     }
     void begin(Scheduler* scheduler);
     void end();
@@ -135,8 +124,9 @@ class Stepper {
     void start_move(int32_t position, int32_t speed, int32_t acceleration, int32_t clientID = -1);
     void halt_move();
     void do_homing();
-    int32_t getCurrentPosition() { return _stepper->getCurrentPosition() / STEPS_PER_MM; }
-    int32_t getCurrentSpeed() { return _stepper->getCurrentSpeedInMilliHz() / STEPS_PER_MM / 1000; }
+    void set_zero();
+    int32_t getCurrentPosition() { return _current_position; }
+    int32_t getCurrentSpeed() { return _current_speed; }
     int32_t getDestinationPosition() { return _destination_position; }
     int32_t getDestinationSpeed() { return _destination_speed; }
     int32_t getDestinationAcceleration() { return _destination_acceleration; }
@@ -144,50 +134,36 @@ class Stepper {
     void setAutoHome(bool autoHome);
     std::string getHomingState_as_string();
 
+    // CAN Feedback
+    void currentPosition_Feedback(int32_t position);
+    void currentSpeed_Feedback(int32_t speed) { _current_speed = abs(speed); }
+    void set_zero_Feedback(bool result);
+    void move_Feedback(uint8_t result);
+
   private:
     Scheduler* _scheduler = nullptr;
-    TMC2209 _stepper_driver;
-    FastAccelStepper* _stepper = nullptr;
+    TwaiCan* _canBus = nullptr;
     DriverComState _driverComState = DriverComState::UNKNOWN;
     MotorState _motorState = MotorState::UNKNOWN;
-    StatusRequest _srHome;
-    void IRAM_ATTR _isrHome() {
-      if (_srHome.pending())
-        _srHome.signalComplete();
-    }
-    StatusRequest _srDiag;
-    void IRAM_ATTR _isrDiag() {
-      if (_srDiag.pending())
-        _srDiag.signalComplete();
-    }
-    Task* _homingIRQTask = nullptr;
-    void _homingIRQCallback();
-    Task* _diagIRQTask = nullptr;
-    void _diagIRQCallback();
-    StatusRequest _srHoming;
-    Task* _homingTask = nullptr;
-    Task* _checkTMC2209Task = nullptr;
-    void _checkTMC2209();
-    void _initTMC2209();
-    void _initTMC2209Gradient(bool startAdaptation = false);
-    void _checkTMC2209Gradient();
-    void _initTMC2209Finished();
-    void _reInitTMC2209();
-    uint8_t _pwmGradient = 0;
-    uint8_t _pwmOffset = 0;
+    Task* _pollMKSTask = nullptr;
+    void _pollMKS();
+    void _initMKS();
     InitializationState _initializationState = InitializationState::UNITITIALIZED;
     bool _homed = false;
     bool _autoHome = false;
-    // position, speed, acceleration in mm, mm/s, mm/ss
+    // desired position, speed, acceleration in deg, rpm, au
     // (current values will be gathered from FastAccelStepper on demand)
     int32_t _destination_position = 0;
     int32_t _destination_speed = 0;
     int32_t _destination_acceleration = 0;
-    MotorDirection _movementDirection = MotorDirection::STANDSTILL;
+    // current position, speed in deg, rpm
+    int32_t _current_position = 0;
+    int32_t _current_speed = 0;
+    // MotorDirection _movementDirection = MotorDirection::STANDSTILL;
     Task* _checkMovementTask = nullptr;
     void _checkMovementCallback();
-    void _checkStandstillCallback();
-    StatusRequest _srStandstill;
+    // void _checkStandstillCallback();
+    // StatusRequest _srStandstill;
     // to be called by website for motor specific events
     void _webEventCallback(JsonDocument doc);
     // to be called by stepper for motor specific events

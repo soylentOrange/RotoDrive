@@ -126,7 +126,7 @@ void WebSite::_webSiteCallback() {
   // serve driver info
   _webServer->on("/driver", HTTP_GET, [](AsyncWebServerRequest* request) {
               // LOGD(TAG, "Serve driver info");
-              auto* response = request->beginResponse(200, "text/plain", "TMC2209");
+              auto* response = request->beginResponse(200, "text/plain", "MKS42D");
               request->send(response); })
     .setFilter([](__unused AsyncWebServerRequest* request) { return eventHandler.getNetworkState() != Mycila::ESPConnect::State::PORTAL_STARTED; });
 
