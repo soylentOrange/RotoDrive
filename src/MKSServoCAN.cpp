@@ -77,7 +77,7 @@ namespace MKSServoCAN {
               v |= ~((int64_t(1) << 48) - 1);
             }
             // LOGD(TAG, "EncAdd=%lld\n", v);
-            float encPosition = v * 360.0 / 16384.0;
+            double encPosition = v * 360.0 / 16384.0;
             stepper.currentPosition_Feedback(static_cast<int32_t>(encPosition));
           }
           break;

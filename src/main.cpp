@@ -6,6 +6,7 @@
 #include <Preferences.h>
 #include <TaskScheduler.h>
 #include <thingy.h>
+#include <micro_ros_platformio.h>
 
 #define TAG "Main"
 
@@ -33,7 +34,6 @@ Mycila::Logger* webLogger = nullptr;
 #endif
 
 void setup() {
-#ifdef MYCILA_LOGGER_SUPPORT_APP
   // Start Serial or USB-CDC
   #if !ARDUINO_USB_CDC_ON_BOOT
   Serial.begin(MONITOR_SPEED);
@@ -47,10 +47,8 @@ void setup() {
   // Note: Enabling Debug via USB-CDC is handled via framework
   #endif
 
-  serialLogger = new Mycila::Logger();
-  serialLogger->forwardTo(&Serial);
-  serialLogger->setLevel(ARDUHAL_LOG_LEVEL_DEBUG);
-#endif
+  // Set serial transport functions for uRos
+  set_microros_serial_transports(Serial);
 
   // Add LED-Task to Scheduler
   led.begin(&scheduler);

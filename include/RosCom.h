@@ -5,12 +5,16 @@
 #pragma once
 
 #include <TaskSchedulerDeclarations.h>
-#include <micro_ros_platformio.h>
-//#include <pthread.h>
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <std_msgs/msg/int32.h>
+
+#define COMMAND_INVALID (-2)
+#define COMMAND_STOP (0)
+#define COMMAND_FWD (1)
+#define COMMAND_REV (-1)
+#define COMMAND_HOME (2)
 
 class RosCom {
   public:
@@ -21,5 +25,17 @@ class RosCom {
   private:
     Scheduler* _scheduler = nullptr;
     void _initROS();
+    Task* _spinROSTask = nullptr;
+    void _spinROS();
+    // Task* _checkROSTask = nullptr;
+    // void _checkROS();    
     rcl_allocator_t _allocator;
+    rclc_support_t _support;
+    std_msgs__msg__Int32 _msg;
+    rclc_executor_t _executor;
+    rcl_node_t _node;
+    rcl_subscription_t _subscriber;
+    void _stepper_command_callback(const void* msg_in);
+    int32_t _lastCommand = COMMAND_INVALID;
+    // uint32_t _lastPing = 0;
 };
