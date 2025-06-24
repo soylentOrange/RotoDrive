@@ -50,7 +50,7 @@ namespace MKSServoCAN {
     CanFrame rx;
     while (_bus->receive(rx, timeoutMs)) {
       uint8_t code = rx.data[0];
-      LOGD(TAG, "RX -> ID=0x%03X  Code=0x%02X: ", rx.id, code);
+      // LOGD(TAG, "RX -> ID=0x%03X  Code=0x%02X: ", rx.id, code);
 
       switch (code) {
         // Not required
@@ -76,7 +76,7 @@ namespace MKSServoCAN {
             if (v & (int64_t(1) << 47)) {
               v |= ~((int64_t(1) << 48) - 1);
             }
-            LOGD(TAG, "EncAdd=%lld\n", v);
+            // LOGD(TAG, "EncAdd=%lld\n", v);
             float encPosition = v * 360.0 / 16384.0;
             stepper.currentPosition_Feedback(static_cast<int32_t>(encPosition));
           }
@@ -87,7 +87,7 @@ namespace MKSServoCAN {
         case 0x32: {
           if (rx.dlc >= 4) {
             int16_t sp = int16_t(rx.data[1] << 8 | rx.data[2]);
-            LOGD(TAG, "Speed=%d RPM\n", sp);
+            // LOGD(TAG, "Speed=%d RPM\n", sp);
             stepper.currentSpeed_Feedback(static_cast<int32_t>(sp));
           }
           break;
@@ -203,7 +203,7 @@ namespace MKSServoCAN {
         case 0x92: {
           if (rx.dlc >= 2) {
             LOGD(TAG, "HomeCmd0x%02X status=%s\n", code, rx.data[1] ? "OK" : "Fail");
-            stepper.set_zero_Feedback(rx.data[1] ? true : false);
+            // stepper.set_zero_Feedback(rx.data[1] ? true : false);
           }
           break;
         }

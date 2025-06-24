@@ -57,6 +57,7 @@ class Stepper {
       UNINITIALIZED,
       IDLE,
       HOMING,
+      ZEROING,
       HOMED, // only temporarily
       DRIVING,
       ARRIVED,  // only temporarily
@@ -72,6 +73,7 @@ class Stepper {
       {MotorState::UNINITIALIZED, "UNINITIALIZED"},
       {MotorState::IDLE, "IDLE"},
       {MotorState::HOMING, "HOMING"},
+      {MotorState::ZEROING, "HOMING"},      
       {MotorState::HOMED, "HOMED"},
       {MotorState::DRIVING, "DRIVING"},
       {MotorState::ARRIVED, "ARRIVED"},
@@ -86,6 +88,7 @@ class Stepper {
       {MotorState::UNINITIALIZED, LED::LEDMode::INITIALIZING},
       {MotorState::IDLE, LED::LEDMode::IDLE},
       {MotorState::HOMING, LED::LEDMode::HOMING},
+      {MotorState::ZEROING, LED::LEDMode::HOMING},
       {MotorState::HOMED, LED::LEDMode::IDLE},
       {MotorState::DRIVING, LED::LEDMode::DRIVING},
       {MotorState::ARRIVED, LED::LEDMode::IDLE},
@@ -94,19 +97,19 @@ class Stepper {
       {MotorState::WARNING, LED::LEDMode::IDLE},
       {MotorState::ERROR, LED::LEDMode::ERROR}};
 
-    enum class MotorDirection {
-      FORWARDS,
-      BACKWARDS,
-      STANDSTILL
-    };
+    // enum class MotorDirection {
+    //   FORWARDS,
+    //   BACKWARDS,
+    //   STANDSTILL
+    // };
 
-    enum class InitializationState {
-      UNITITIALIZED,
-      GRADIENT_HOMING,   // Gradient calibration moving towards home
-      GRADIENT_HOME,     // Gradient calibration hit home
-      GRADIENT_DEHOMING, // Gradient calibration moving away from home
-      OK
-    };
+    // enum class InitializationState {
+    //   UNITITIALIZED,
+    //   GRADIENT_HOMING,   // Gradient calibration moving towards home
+    //   GRADIENT_HOME,     // Gradient calibration hit home
+    //   GRADIENT_DEHOMING, // Gradient calibration moving away from home
+    //   OK
+    // };
 
   public:
     explicit Stepper(TwaiCan& canBus) : _canBus(&canBus) {
@@ -148,7 +151,7 @@ class Stepper {
     Task* _pollMKSTask = nullptr;
     void _pollMKS();
     void _initMKS();
-    InitializationState _initializationState = InitializationState::UNITITIALIZED;
+    // InitializationState _initializationState = InitializationState::UNITITIALIZED;
     bool _homed = false;
     bool _autoHome = false;
     // desired position, speed, acceleration in deg, rpm, au
@@ -157,6 +160,7 @@ class Stepper {
     int32_t _destination_speed = 0;
     int32_t _destination_acceleration = 0;
     // current position, speed in deg, rpm
+    int32_t _position_offset = 0;
     int32_t _current_position = 0;
     int32_t _current_speed = 0;
     // MotorDirection _movementDirection = MotorDirection::STANDSTILL;

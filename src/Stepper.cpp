@@ -26,10 +26,11 @@ void Stepper::begin(Scheduler* scheduler) {
   _destination_speed = preferences.getInt("speed", 30);
   _destination_acceleration = preferences.getInt("acc", 0);
   _autoHome = preferences.getBool("ahome", false);
+  _position_offset = preferences.getInt("offs", 0);
   preferences.end();
 
   // Set up a task for initializing the motor
-  _initializationState = InitializationState::UNITITIALIZED;
+  //_initializationState = InitializationState::UNITITIALIZED;
   _driverComState = DriverComState::UNKNOWN;
   _motorState = MotorState::UNKNOWN;
   Task* initMKSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initMKS(); }, _scheduler, false, NULL, NULL, true);
@@ -39,7 +40,7 @@ void Stepper::begin(Scheduler* scheduler) {
 
 void Stepper::end() {
   _motorEventCallback = nullptr;
-  _initializationState = InitializationState::UNITITIALIZED;
+  //_initializationState = InitializationState::UNITITIALIZED;
 
   // end the check-task
   if (_pollMKSTask != nullptr) {
@@ -49,7 +50,6 @@ void Stepper::end() {
 
   // possibly stop an ongoing movement
   // TODO
-  //_movementDirection = MotorDirection::STANDSTILL;
 
   // software-disable the driver
   MKSServoCAN::enableMotor(CAN_ID, false);
@@ -85,7 +85,7 @@ void Stepper::_initMKS() {
   // Reflect state
   _driverComState = DriverComState::UNKNOWN;
   _motorState = MotorState::UNINITIALIZED;
-  _initializationState = InitializationState::UNITITIALIZED;
+  //_initializationState = InitializationState::UNITITIALIZED;
   led.setMode(LED::LEDMode::INITIALIZING);
 
   // Start communication with MKS
@@ -123,7 +123,7 @@ void Stepper::_initMKS() {
 
   // CAN init successful...
   LOGI(TAG, "Stepper driver seems fine!");
-  _initializationState = InitializationState::OK;
+  //_initializationState = InitializationState::OK;
   _driverComState = DriverComState::OK;
   _motorState = MotorState::IDLE;
   led.setMode(LED::LEDMode::IDLE);
@@ -310,7 +310,7 @@ void Stepper::start_move(int32_t position, int32_t speed, int32_t acceleration, 
   _destination_position = position;
   _destination_speed = speed;
   _destination_acceleration = acceleration;
-  float encPosition = position * 16384.0 / 360.0;
+  float encPosition = (position - _position_offset) * 16384.0 / 360.0;
 
   if (_motorState != MotorState::DRIVING) {
     _motorState = MotorState::DRIVING;
@@ -388,7 +388,7 @@ void Stepper::move_Feedback(uint8_t result) {
     return;
   }
 
-  LOGD(TAG, "move_Feedback result: %d (%s)", result, getMotorState_as_string().c_str());
+  // LOGD(TAG, "move_Feedback result: %d (%s)", result, getMotorState_as_string().c_str());
 
   // currently going to zero
   if (_motorState == MotorState::HOMING) {
@@ -440,7 +440,7 @@ void Stepper::move_Feedback(uint8_t result) {
 }
 
 void Stepper::currentPosition_Feedback(int32_t position) {
-  _current_position = position;
+  _current_position = position - _position_offset;
 
   if (_motorState == MotorState::ERROR) {
     // movement is already finished
@@ -474,6 +474,33 @@ void Stepper::currentPosition_Feedback(int32_t position) {
       jsonMsg.shrinkToFit();
       _motorEventCallback(jsonMsg);
     }
+  } else if (_motorState == MotorState::ZEROING) {
+    LOGI(TAG, "Current position is now zero!");
+    _destination_position = 0;
+    _position_offset = _current_position;
+    _current_position = 0;
+    _current_speed = 0;
+    _destination_position = 0;
+    _homed = true;
+    _motorState = MotorState::IDLE;
+    led.setMode(LED::LEDMode::IDLE);
+
+    // save current position
+    Preferences preferences;
+    preferences.begin("rdrive", false);
+    preferences.putInt("offs", _position_offset);
+    preferences.end();
+
+    // send websock event
+    if (_motorEventCallback != nullptr) {
+      JsonDocument jsonMsg;
+      jsonMsg["type"] = "motor_state";
+      jsonMsg["state"] = MotorState_string_map[MotorState::HOMED].c_str();
+      jsonMsg["move_state"]["position"] = 0;
+      jsonMsg["move_state"]["speed"] = 0;
+      jsonMsg.shrinkToFit();
+      _motorEventCallback(jsonMsg);
+    }
   }
 }
 
@@ -495,7 +522,8 @@ void Stepper::do_homing() {
   }
 
   // Issue Command to MKS
-  MKSServoCAN::posAxisAbsolute(CAN_ID, 0, 60, 100);
+  float encPosition = -_position_offset * 16384.0 / 360.0;
+  MKSServoCAN::posAxisAbsolute(CAN_ID, static_cast<int16_t>(encPosition), HOMING_SPEED, HOMING_ACCELERATION);
 }
 
 void Stepper::set_zero_Feedback(bool result) {
@@ -535,8 +563,10 @@ void Stepper::set_zero_Feedback(bool result) {
 void Stepper::set_zero() {
   LOGD(TAG, "Setting current position to Zero!");
 
-  _motorState = MotorState::HOMING;
+  _motorState = MotorState::ZEROING;
   led.setMode(LED::LEDMode::HOMING);
+  _position_offset = 0;
+  _homed = false;
 
   // send websock event
   if (_motorEventCallback != nullptr) {
@@ -544,13 +574,16 @@ void Stepper::set_zero() {
     jsonMsg["type"] = "motor_state";
     jsonMsg["state"] = stepper.getMotorState_as_string().c_str();
     jsonMsg["move_state"]["position"] = 0;
-    jsonMsg["move_state"]["speed"] = 33;
+    jsonMsg["move_state"]["speed"] = 0;
     jsonMsg.shrinkToFit();
     _motorEventCallback(jsonMsg);
   }
 
   // Send command to MKS
-  MKSServoCAN::setZeroPoint(CAN_ID);
+  // MKSServoCAN::setZeroPoint(CAN_ID);
+
+  // Get current position
+  MKSServoCAN::readEncoderAdd(CAN_ID);
 }
 
 std::string Stepper::getHomingState_as_string() {
