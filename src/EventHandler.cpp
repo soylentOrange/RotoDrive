@@ -46,12 +46,12 @@ void EventHandler::_networkStateCallback(Mycila::ESPConnect::State state) {
 
     case Mycila::ESPConnect::State::NETWORK_TIMEOUT:
       LOGW(TAG, "--> Timeout connecting to network...");
-      if (Mycila::System::restartFactory("safeboot", 1000)) {
+      if (webServerAPI.restartFactory("safeboot", 1000)) {
         LOGW(TAG, "Restarting in SafeBoot mode...");
         led.setMode(LED::LEDMode::WAITING_CAPTIVE);
       } else {
-        LOGE(TAG, "SafeBoot partition not found");
-        Mycila::System::restart(1000);
+        LOGE(TAG, "SafeBoot partition not found");        
+        webServerAPI.restart(1000);
         led.setMode(LED::LEDMode::ERROR);
       }
       _srConnected.setWaiting();
@@ -66,21 +66,21 @@ void EventHandler::_networkStateCallback(Mycila::ESPConnect::State state) {
     // This must not happen
     case Mycila::ESPConnect::State::AP_STARTED:
       LOGE(TAG, "--> Created AP...");
-      Mycila::System::restart(1000);
+      webServerAPI.restart(1000);
       led.setMode(LED::LEDMode::ERROR);
       break;
 
     // This must not happen
     case Mycila::ESPConnect::State::PORTAL_STARTED:
       LOGE(TAG, "--> Started Captive Portal...");
-      Mycila::System::restart(1000);
+      webServerAPI.restart(1000);
       led.setMode(LED::LEDMode::ERROR);
       break;
 
     // This must not happen
     case Mycila::ESPConnect::State::PORTAL_COMPLETE: {
       LOGE(TAG, "--> Captive Portal has ended, auto-save the configuration...");
-      Mycila::System::restart(1000);
+      webServerAPI.restart(1000);
       led.setMode(LED::LEDMode::ERROR);
       break;
     }

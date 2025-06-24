@@ -93,7 +93,7 @@ void WebSite::_webSiteCallback() {
       client->text(buffer);
     } else if (type == WS_EVT_DATA) {
       // Try handling the data
-      try {
+      // try {
         AwsFrameInfo* info = reinterpret_cast<AwsFrameInfo*>(arg);
         if (info->final && info->index == 0 && info->len == len) {
           if (info->opcode == WS_TEXT) {
@@ -115,9 +115,9 @@ void WebSite::_webSiteCallback() {
             }
           }
         }
-      } catch (const std::exception& e) {
-        LOGE(TAG, "Exception occured while processing WS data!");
-      }
+      // } catch (const std::exception& e) {
+      //   LOGE(TAG, "Exception occured while processing WS data!");
+      // }
     }
   });
 

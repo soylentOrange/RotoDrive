@@ -3,8 +3,10 @@
  * Copyright (C) 2025 Robert Wendlandt
  */
 
+#include <Ticker.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
+#include <esp_timer.h>
 #include <thingy.h>
 
 #define TAG "WebServer"
@@ -28,6 +30,30 @@ void WebServerAPI::end() {
   _sr.setWaiting();
   _webServer->end();
   LOGD(TAG, "...done!");
+}
+
+void WebServerAPI::restart(uint32_t delayMillisBeforeRestartMillis) {
+  _delayedTask.detach();
+  if (delayMillisBeforeRestartMillis == 0) {
+    LOGW(TAG, "Restart!");
+    esp_restart();
+  } else {
+    LOGW(TAG, "Restart in %" PRIu32 " ms...", delayMillisBeforeRestartMillis);
+    _delayedTask.once_ms(delayMillisBeforeRestartMillis, esp_restart);
+  }
+}
+
+bool WebServerAPI::restartFactory(const char* partitionName, uint32_t delayMillisBeforeRestartMillis) {
+  const esp_partition_t* partition = esp_partition_find_first(esp_partition_type_t::ESP_PARTITION_TYPE_APP, esp_partition_subtype_t::ESP_PARTITION_SUBTYPE_APP_FACTORY, partitionName);
+  if (partition) {
+    LOGW(TAG, "Set boot partition to %s", partitionName);
+    ESP_ERROR_CHECK(esp_ota_set_boot_partition(partition));
+    restart(delayMillisBeforeRestartMillis);
+    return true;
+  } else {
+    ESP_LOGE(TAG, "Partition not found: %s", partitionName);
+    return false;
+  }
 }
 
 // Start the webserver
@@ -54,7 +80,7 @@ void WebServerAPI::_webServerCallback() {
     LOGW(TAG, TAG, "Restarting!");
     auto* response = request->beginResponse(200, "text/plain", "WiFi credentials are gone! Restarting now...");
     request->send(response);
-    Mycila::System::restart(1000);
+    restart(1000);
     led.setMode(LED::LEDMode::WAITING_CAPTIVE);
   });
 
@@ -64,14 +90,14 @@ void WebServerAPI::_webServerCallback() {
     auto* response = request->beginResponse(200, "text/plain", "Restarting now...");
     request->send(response);
     stepper.end();
-    Mycila::System::restart(1000);
+    restart(1000);
     led.setMode(LED::LEDMode::WAITING_WIFI);
   });
 
   // reboot esp into SafeBoot
   _webServer->on("/api/system/safeboot", HTTP_POST, [&](AsyncWebServerRequest* request) {
     LOGW(TAG, "Restarting in SafeBoot-mode...");
-    if (Mycila::System::restartFactory("safeboot", 1000)) {
+    if (restartFactory("safeboot", 1000)) {
       auto* response = request->beginResponse(200, "text/plain", "Restarting into SafeBoot now...");
       request->send(response);
       stepper.end();

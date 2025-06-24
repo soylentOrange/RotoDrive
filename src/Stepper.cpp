@@ -310,7 +310,7 @@ void Stepper::start_move(int32_t position, int32_t speed, int32_t acceleration, 
   _destination_position = position;
   _destination_speed = speed;
   _destination_acceleration = acceleration;
-  float encPosition = (position - _position_offset) * 16384.0 / 360.0;
+  float encPosition = (position + _position_offset) * 16384.0 / 360.0;
 
   if (_motorState != MotorState::DRIVING) {
     _motorState = MotorState::DRIVING;
@@ -522,7 +522,7 @@ void Stepper::do_homing() {
   }
 
   // Issue Command to MKS
-  float encPosition = -_position_offset * 16384.0 / 360.0;
+  float encPosition = _position_offset * 16384.0 / 360.0;
   MKSServoCAN::posAxisAbsolute(CAN_ID, static_cast<int16_t>(encPosition), HOMING_SPEED, HOMING_ACCELERATION);
 }
 

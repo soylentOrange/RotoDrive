@@ -30,12 +30,12 @@ void ESPNetwork::begin(Scheduler* scheduler) {
   if (espConnectConfig.apMode || !espConnectConfig.wifiSSID.length()) {
     while (true) {
       LOGW(TAG, "No valid WiFi-configuration found! Restarting in SafeBoot-mode...");
-      if (Mycila::System::restartFactory("safeboot", 1000)) {
+      if (webServerAPI.restartFactory("safeboot", 1000)) {
         LOGW(TAG, "Restarting in SafeBoot-mode...");
         led.setMode(LED::LEDMode::WAITING_CAPTIVE);
       } else {
         LOGE(TAG, "SafeBoot-partition not found");
-        Mycila::System::restart(1000);
+        webServerAPI.restart(1000);
         led.setMode(LED::LEDMode::ERROR);
       }
       delay(1500);

@@ -19,6 +19,7 @@ WebSite webSite(webServer);
 LED led;
 TwaiCan canBus(CAN_TX, CAN_RX);
 Stepper stepper(canBus);
+RosCom roscom;
 
 // Allow logging for app via serial
 #if defined(MYCILA_LOGGER_SUPPORT_APP)
@@ -68,6 +69,9 @@ void setup() {
 
   // Add Stepper to Scheduler
   stepper.begin(&scheduler);
+
+  // Add ros to Scheduler
+  roscom.begin(&scheduler);
 }
 
 void loop() {
