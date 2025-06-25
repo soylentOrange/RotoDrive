@@ -31,7 +31,7 @@ void Stepper::begin(Scheduler* scheduler) {
 
   // Set up a task for initializing the motor
   //_initializationState = InitializationState::UNITITIALIZED;
-  _driverComState = DriverComState::UNKNOWN;
+  //_driverComState = DriverComState::UNKNOWN;
   _motorState = MotorState::UNKNOWN;
   Task* initMKSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initMKS(); }, _scheduler, false, NULL, NULL, true);
   initMKSTask->enable();
@@ -83,7 +83,7 @@ void Stepper::_initMKS() {
   bool initError = false;
 
   // Reflect state
-  _driverComState = DriverComState::UNKNOWN;
+  //_driverComState = DriverComState::UNKNOWN;
   _motorState = MotorState::UNINITIALIZED;
   //_initializationState = InitializationState::UNITITIALIZED;
   led.setMode(LED::LEDMode::INITIALIZING);
@@ -96,7 +96,8 @@ void Stepper::_initMKS() {
 
   // CAN init failed
   if (initError) {
-    _driverComState = DriverComState::ERROR;
+    //_driverComState = DriverComState::ERROR;
+    _motorState = MotorState::ERROR;
     led.setMode(LED::LEDMode::ERROR);
 
     // execute callback (from website)
@@ -104,6 +105,7 @@ void Stepper::_initMKS() {
       JsonDocument jsonMsg;
       jsonMsg["type"] = "motor_state";
       jsonMsg["state"] = getMotorState_as_string().c_str();
+      jsonMsg["error"] = "CAN init failed";
       jsonMsg.shrinkToFit();
       _motorEventCallback(jsonMsg);
     }
@@ -124,7 +126,7 @@ void Stepper::_initMKS() {
   // CAN init successful...
   LOGI(TAG, "Stepper driver seems fine!");
   //_initializationState = InitializationState::OK;
-  _driverComState = DriverComState::OK;
+  //_driverComState = DriverComState::OK;
   _motorState = MotorState::IDLE;
   led.setMode(LED::LEDMode::IDLE);
 

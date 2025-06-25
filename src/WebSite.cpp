@@ -82,6 +82,7 @@ void WebSite::_webSiteCallback() {
       jsonMsg["id"] = client->id();
       jsonMsg["config"]["autoHome"] = stepper.getAutoHome();
       jsonMsg["homing_state"] = stepper.getHomingState_as_string().c_str();
+      jsonMsg["ros_state"]["state"] = roscom.getRosComState_as_string().c_str();
       jsonMsg["motor_state"]["move_state"]["position"] = stepper.getCurrentPosition();
       jsonMsg["motor_state"]["move_state"]["speed"] = stepper.getCurrentSpeed();
       jsonMsg["motor_state"]["state"] = stepper.getMotorState_as_string().c_str();
@@ -93,7 +94,7 @@ void WebSite::_webSiteCallback() {
       client->text(buffer);
     } else if (type == WS_EVT_DATA) {
       // Try handling the data
-      // try {
+      try {
         AwsFrameInfo* info = reinterpret_cast<AwsFrameInfo*>(arg);
         if (info->final && info->index == 0 && info->len == len) {
           if (info->opcode == WS_TEXT) {
@@ -115,9 +116,9 @@ void WebSite::_webSiteCallback() {
             }
           }
         }
-      // } catch (const std::exception& e) {
-      //   LOGE(TAG, "Exception occured while processing WS data!");
-      // }
+      } catch (const std::exception& e) {
+        LOGE(TAG, "Exception occured while processing WS data!");
+      }
     }
   });
 
@@ -156,8 +157,9 @@ void WebSite::_webSiteCallback() {
     .setFilter([](__unused AsyncWebServerRequest* request) { return eventHandler.getNetworkState() != Mycila::ESPConnect::State::PORTAL_STARTED; });
 
   // register event handlers to stepper
-  LOGD(TAG, "register event handlers to stepper");
-  stepper.listenMotorEvent([&](JsonDocument doc) { _motorEventCallback(doc); });
+  LOGD(TAG, "register event handlers to stepper and roscom");
+  stepper.listenMotorEvent([&](JsonDocument doc) { _eventCallback(doc); });
+  roscom.listenRosEvent([&](JsonDocument doc) { _eventCallback(doc); });
 
   // set up a task to cleanup orphan websock-clients
   _disconnectTime = millis();
@@ -168,9 +170,9 @@ void WebSite::_webSiteCallback() {
   LOGD(TAG, "...done!");
 }
 
-// Handle events from motor
+// Handle events from motor and roscom
 // just forward the event to the website client(s)
-void WebSite::_motorEventCallback(JsonDocument doc) {
+void WebSite::_eventCallback(JsonDocument doc) {
   _ws->cleanupClients(WSL_MAX_WS_CLIENTS);
   if (_ws->count()) {
     AsyncWebSocketMessageBuffer* buffer = new AsyncWebSocketMessageBuffer(measureJson(doc));

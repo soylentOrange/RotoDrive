@@ -105,7 +105,3 @@ status-indicator[negative] {
 status-indicator[negative][pulse] {
   animation-name: status-indicator-pulse-negative;
 }
-
-/* status-indicator.hidden {
-  display: none;
-} */

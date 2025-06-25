@@ -13,6 +13,7 @@ void RosCom::begin(Scheduler* scheduler) {
   // Task handling
   _scheduler = scheduler;
   _allocator = rcl_get_default_allocator();
+  _rosComState = RosComState::CONNECTING;
 
   // Set up a task for initializing the ros-communication
   Task* initROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
@@ -32,6 +33,8 @@ void RosCom::end() {
   //     _checkROSTask->disable();
   //     _checkROSTask = nullptr;
   //   }
+  _rosComState = RosComState::UNKNOWN;
+  _rosEventCallback = nullptr;
 }
 
 // Initialization
@@ -102,6 +105,17 @@ void RosCom::_initROS() {
   _spinROSTask = new Task(25, TASK_FOREVER, [&] { _spinROS(); }, _scheduler, false, NULL, NULL, true);
   _spinROSTask->enableDelayed(25);
 
+  _rosComState = RosComState::CONNECTED;
+
+  // execute callback (from website)
+  if (_rosEventCallback != nullptr) {
+    JsonDocument jsonMsg;
+    jsonMsg["type"] = "ros_state";
+    jsonMsg["state"] = getRosComState_as_string().c_str();
+    jsonMsg.shrinkToFit();
+    _rosEventCallback(jsonMsg);
+  }
+
   //   // Start Subscription-check-Task
   //   LOGD(TAG, "starting _checkROSTask");
   //   _checkROSTask = new Task(1000, TASK_FOREVER, [&] { _checkROS(); }, _scheduler, false, NULL, NULL, true);
@@ -155,11 +169,11 @@ void RosCom::_stepper_command_callback(const void* msg_in) {
         LOGI(TAG, "COMMAND_STOP");
         break;
       case COMMAND_FWD:
-        stepper.start_move(36000, 60, 200);
+        stepper.start_move(36000, HOMING_SPEED, 200);
         LOGI(TAG, "COMMAND_FWD");
         break;
       case COMMAND_REV:
-        stepper.start_move(-36000, 60, 200);
+        stepper.start_move(-36000, HOMING_SPEED, 200);
         LOGI(TAG, "COMMAND_REV");
         break;
       case COMMAND_HOME:
