@@ -17,39 +17,39 @@
 #define INCREASING true
 
 class Stepper {
-  public:
-    enum class DriverError {
-      UNKNOWN,
-      POWER,
-      OK,
-      TEMPERATURE,
-      COIL_A,
-      COIL_B
-    };
+  // public:
+  //   enum class DriverError {
+  //     UNKNOWN,
+  //     POWER,
+  //     OK,
+  //     TEMPERATURE,
+  //     COIL_A,
+  //     COIL_B
+  //   };
 
-  private:
-    std::map<DriverError, std::string> DriverError_string_map = {
-      {DriverError::UNKNOWN, "Unknown Error"},
-      {DriverError::POWER, "Power Failed"},
-      {DriverError::OK, "OK"},
-      {DriverError::COIL_A, "Coil A"},
-      {DriverError::COIL_B, "Coil B"},
-      {DriverError::TEMPERATURE, "Temperature"}};
+  // private:
+  //   std::map<DriverError, std::string> DriverError_string_map = {
+  //     {DriverError::UNKNOWN, "Unknown Error"},
+  //     {DriverError::POWER, "Power Failed"},
+  //     {DriverError::OK, "OK"},
+  //     {DriverError::COIL_A, "Coil A"},
+  //     {DriverError::COIL_B, "Coil B"},
+  //     {DriverError::TEMPERATURE, "Temperature"}};
 
-  public:
-    enum class DriverComState {
-      UNKNOWN,
-      UNINITIALIZED,
-      OK,
-      ERROR
-    };
+  // public:
+  //   enum class DriverComState {
+  //     UNKNOWN,
+  //     UNINITIALIZED,
+  //     OK,
+  //     ERROR
+  //   };
 
-  private:
-    std::map<DriverComState, std::string> DriverComState_string_map = {
-      {DriverComState::UNKNOWN, "UNKNOWN"},
-      {DriverComState::UNINITIALIZED, "UNINITIALIZED"},
-      {DriverComState::OK, "OK"},
-      {DriverComState::ERROR, "ERROR"}};
+  // private:
+  //   std::map<DriverComState, std::string> DriverComState_string_map = {
+  //     {DriverComState::UNKNOWN, "UNKNOWN"},
+  //     {DriverComState::UNINITIALIZED, "UNINITIALIZED"},
+  //     {DriverComState::OK, "OK"},
+  //     {DriverComState::ERROR, "ERROR"}};
 
   public:
     enum class MotorState {
@@ -119,8 +119,8 @@ class Stepper {
     void end();
     typedef std::function<void(JsonDocument doc)> MotorEventCallback;
     void listenMotorEvent(MotorEventCallback callback) { _motorEventCallback = callback; }
-    DriverComState getComState() { return _driverComState; }
-    std::string getComState_as_string() { return DriverComState_string_map[_driverComState]; }
+    // DriverComState getComState() { return _driverComState; }
+    // std::string getComState_as_string() { return DriverComState_string_map[_driverComState]; }
     MotorState getMotorState() { return _motorState; }
     std::string getMotorState_as_string() { return MotorState_string_map[_motorState]; }
     LED::LEDMode getMotorState_as_LEDMode() { return MotorState_LEDMode_map[_motorState]; }
@@ -146,7 +146,7 @@ class Stepper {
   private:
     Scheduler* _scheduler = nullptr;
     TwaiCan* _canBus = nullptr;
-    DriverComState _driverComState = DriverComState::UNKNOWN;
+    //DriverComState _driverComState = DriverComState::UNKNOWN;
     MotorState _motorState = MotorState::UNKNOWN;
     Task* _pollMKSTask = nullptr;
     void _pollMKS();

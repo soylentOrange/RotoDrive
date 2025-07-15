@@ -490,16 +490,16 @@
           <div class="info_text_status_name">Thingy Connection:</div>
           <div class="info_text_status">
             <status-indicator intermediary pulse id="statusWebsockConnecting" title="Connecting"></status-indicator>
-            <status-indicator positive disabled id="statusWebsockConnected" title="Connected"></status-indicator>
+            <status-indicator positive hidden id="statusWebsockConnected" title="Connected"></status-indicator>
           </div>
         </div>
         <div class="info_text_container very_important">
           <div class="info_text_status_name">µROS Connection:</div>
           <div class="info_text_status">
             <status-indicator id="statusROSUnknown" title="Unknown"></status-indicator>
-            <status-indicator intermediary pulse disabled id="statusROSConnecting" title="Pending"></status-indicator>
-            <status-indicator positive disabled id="statusROSConnected" title="OK"></status-indicator>
-            <status-indicator negative pulse disabled id="statusROSError" title="Error"></status-indicator>
+            <status-indicator intermediary pulse hidden id="statusROSConnecting" title="Pending"></status-indicator>
+            <status-indicator positive hidden id="statusROSConnected" title="OK"></status-indicator>
+            <status-indicator negative pulse hidden id="statusROSError" title="Error"></status-indicator>
           </div>
         </div>
         <h2><span>Motor</span></h2>
@@ -507,10 +507,10 @@
           <div class="info_text_status_name">Motor Status:</div>
           <div class="info_text_status">
             <status-indicator id="statusMotorUnknown" title="Unknown"></status-indicator>
-            <status-indicator positive disabled id="statusMotorIdle" title="Idle"></status-indicator>
-            <status-indicator active pulse disabled id="statusMotorHoming" title="Homing"></status-indicator>
-            <status-indicator positive pulse disabled id="statusMotorDriving" title="Driving"></status-indicator>
-            <status-indicator negative pulse disabled id="statusMotorError" title="Error"></status-indicator>
+            <status-indicator positive hidden id="statusMotorIdle" title="Idle"></status-indicator>
+            <status-indicator active pulse hidden id="statusMotorHoming" title="Homing"></status-indicator>
+            <status-indicator positive pulse hidden id="statusMotorDriving" title="Driving"></status-indicator>
+            <status-indicator negative pulse hidden id="statusMotorError" title="Error"></status-indicator>
           </div>
         </div>
         <div class="info_text_container very_important">
@@ -659,10 +659,10 @@
 
   // Status leds
   const ros_state_enum = {
-    unknown: "unknown",
-    connecting: "connecting",
-    connected: "connected",
-    error: "error",
+    unknown: "UNKNOWN",
+    connecting: "CONNECTING",
+    connected: "CONNECTED",
+    error: "ERROR",
   }
 
   let ros_state = ros_state_enum.unknown
@@ -852,6 +852,7 @@
           clientID = msg.id
           msg.config.origin = DISCONNECTED_CLIENT_ID
           onWsMotorState(msg.motor_state)
+          onWsRosState(msg.ros_state)
           onWsMovementState(msg.motor_state.move_state)
           onWsConfig(msg.config)
           homing_state = msg.homing_state
@@ -878,10 +879,15 @@
           onWsMovementState(msg)
           break
 
-        // diagnostic an run events
+        // diagnostic and run events
         case "motor_state":
           onWsMotorState(msg)
           break
+
+        // diagnostic and run events
+        case "ros_state":
+          onWsRosState(msg)
+          break          
       }
     }
   }
@@ -911,6 +917,31 @@
   function onWsMovementState(moveJSON) {
     positionCurrentText.innerText = `${moveJSON.position} deg`
     speedCurrentText.innerText = `${moveJSON.speed} rpm`
+  }
+
+  // got ros event via websock
+  function onWsRosState(stateJSON) {
+    let stateChange = showRosState(stateJSON.state)
+
+    // show toast for some messages
+    switch (stateJSON.state) {
+      case ros_state_enum.connected:
+        if (stateChange) {
+          Toastify({
+            text: "uRos:\nConnected...",
+            duration: 3000,
+            avatar: "data:image/svg+xml;base64," + btoa(success_svg)
+          }).showToast()
+        }
+        break
+      case ros_state_enum.error:
+        Toastify({
+          text: `uROS Error:\n${stateJSON.error}`,
+          duration: 5000,
+          avatar: "data:image/svg+xml;base64," + btoa(error_svg)
+        }).showToast()
+        break
+    }
   }
 
   // got motor event via websock
@@ -1092,6 +1123,7 @@
     statusROSConnected.style.display = "none"
     statusROSError.style.display = "none"
 
+    let stateChange = ros_state != state
     ros_state = state
 
     switch (state) {
@@ -1107,6 +1139,8 @@
         statusROSUnknown.style.display = "inline-block"
         ros_state = ros_state_enum.unknown
     }
+
+    return stateChange
   }
 
   function showMotorState(state) {

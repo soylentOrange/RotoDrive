@@ -31,7 +31,7 @@ void Stepper::begin(Scheduler* scheduler) {
 
   // Set up a task for initializing the motor
   //_initializationState = InitializationState::UNITITIALIZED;
-  _driverComState = DriverComState::UNKNOWN;
+  //_driverComState = DriverComState::UNKNOWN;
   _motorState = MotorState::UNKNOWN;
   Task* initMKSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initMKS(); }, _scheduler, false, NULL, NULL, true);
   initMKSTask->enable();
@@ -83,7 +83,7 @@ void Stepper::_initMKS() {
   bool initError = false;
 
   // Reflect state
-  _driverComState = DriverComState::UNKNOWN;
+  //_driverComState = DriverComState::UNKNOWN;
   _motorState = MotorState::UNINITIALIZED;
   //_initializationState = InitializationState::UNITITIALIZED;
   led.setMode(LED::LEDMode::INITIALIZING);
@@ -96,7 +96,8 @@ void Stepper::_initMKS() {
 
   // CAN init failed
   if (initError) {
-    _driverComState = DriverComState::ERROR;
+    //_driverComState = DriverComState::ERROR;
+    _motorState = MotorState::ERROR;
     led.setMode(LED::LEDMode::ERROR);
 
     // execute callback (from website)
@@ -104,6 +105,7 @@ void Stepper::_initMKS() {
       JsonDocument jsonMsg;
       jsonMsg["type"] = "motor_state";
       jsonMsg["state"] = getMotorState_as_string().c_str();
+      jsonMsg["error"] = "CAN init failed";
       jsonMsg.shrinkToFit();
       _motorEventCallback(jsonMsg);
     }
@@ -124,7 +126,7 @@ void Stepper::_initMKS() {
   // CAN init successful...
   LOGI(TAG, "Stepper driver seems fine!");
   //_initializationState = InitializationState::OK;
-  _driverComState = DriverComState::OK;
+  //_driverComState = DriverComState::OK;
   _motorState = MotorState::IDLE;
   led.setMode(LED::LEDMode::IDLE);
 
@@ -310,7 +312,7 @@ void Stepper::start_move(int32_t position, int32_t speed, int32_t acceleration, 
   _destination_position = position;
   _destination_speed = speed;
   _destination_acceleration = acceleration;
-  float encPosition = (position - _position_offset) * 16384.0 / 360.0;
+  double encPosition = (position + _position_offset) * 16384.0 / 360.0;
 
   if (_motorState != MotorState::DRIVING) {
     _motorState = MotorState::DRIVING;
@@ -335,7 +337,7 @@ void Stepper::start_move(int32_t position, int32_t speed, int32_t acceleration, 
   }
 
   // send command to MKS
-  MKSServoCAN::posAxisAbsolute(CAN_ID, static_cast<int16_t>(encPosition), static_cast<uint16_t>(speed), static_cast<uint8_t>(_destination_acceleration));
+  MKSServoCAN::posAxisAbsolute(CAN_ID, static_cast<int32_t>(encPosition), static_cast<uint16_t>(speed), static_cast<uint8_t>(_destination_acceleration));
 
   // Get current position and speed
   MKSServoCAN::readEncoderAdd(CAN_ID);
@@ -522,8 +524,8 @@ void Stepper::do_homing() {
   }
 
   // Issue Command to MKS
-  float encPosition = -_position_offset * 16384.0 / 360.0;
-  MKSServoCAN::posAxisAbsolute(CAN_ID, static_cast<int16_t>(encPosition), HOMING_SPEED, HOMING_ACCELERATION);
+  double encPosition = _position_offset * 16384.0 / 360.0;
+  MKSServoCAN::posAxisAbsolute(CAN_ID, static_cast<int32_t>(encPosition), HOMING_SPEED, HOMING_ACCELERATION);
 }
 
 void Stepper::set_zero_Feedback(bool result) {

@@ -13,11 +13,12 @@
 #include <LittleFS.h>
 #include <MKSServoCAN.h>
 #include <MycilaESPConnect.h>
-#include <MycilaSystem.h>
+#include <RosCom.h>
 #include <Stepper.h>
 #include <TwaiCan.h>
 #include <WebServerAPI.h>
 #include <WebSite.h>
+#include <WiFiUdp.h>
 
 // in main.cpp
 extern ESPNetwork espNetwork;
@@ -26,6 +27,8 @@ extern WebServerAPI webServerAPI;
 extern WebSite webSite;
 extern LED led;
 extern Stepper stepper;
+extern RosCom roscom;
+extern WiFiUDP udp_client;
 
 // Allow serial logging for App
 #ifdef MYCILA_LOGGER_SUPPORT_APP

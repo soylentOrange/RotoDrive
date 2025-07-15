@@ -29,6 +29,6 @@ class WebSite {
     uint32_t _disconnectTime;
     // to be called by website for motor specific events
     WebEventCallback _webEventCallback = nullptr;
-    // to be called by stepper for motor specific events
-    void _motorEventCallback(JsonDocument doc);
+    // to be called by stepper and roscom for specific events
+    void _eventCallback(JsonDocument doc);
 };
