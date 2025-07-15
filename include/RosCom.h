@@ -8,6 +8,7 @@
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
+#include <rmw_microros/rmw_microros.h>
 #include <std_msgs/msg/int32.h>
 
 #include <functional>
@@ -23,18 +24,18 @@
 class RosCom {
   public:
     enum class RosComState {
-      UNKNOWN,
-      CONNECTING,
-      CONNECTED,
-      ERROR
+      WAITING_AGENT,
+      AGENT_AVAILABLE,
+      AGENT_CONNECTED,
+      AGENT_DISCONNECTED
     };
 
   private:
     std::map<RosComState, std::string> RosComState_string_map = {
-      {RosComState::UNKNOWN, "UNKNOWN"},
-      {RosComState::CONNECTING, "CONNECTING"},
-      {RosComState::CONNECTED, "CONNECTED"},
-      {RosComState::ERROR, "ERROR"}};
+      {RosComState::WAITING_AGENT, "WAITING_AGENT"},
+      {RosComState::AGENT_AVAILABLE, "AGENT_AVAILABLE"},
+      {RosComState::AGENT_CONNECTED, "AGENT_CONNECTED"},
+      {RosComState::AGENT_DISCONNECTED, "AGENT_DISCONNECTED"}};
 
   public:
     RosCom() {}
@@ -47,12 +48,10 @@ class RosCom {
 
   private:
     Scheduler* _scheduler = nullptr;
-    RosComState _rosComState = RosComState::UNKNOWN;
+    RosComState _rosComState = RosComState::AGENT_DISCONNECTED;
     void _initROS();
     Task* _spinROSTask = nullptr;
     void _spinROS();
-    // Task* _checkROSTask = nullptr;
-    // void _checkROS();
     rcl_allocator_t _allocator;
     rclc_support_t _support;
     std_msgs__msg__Int32 _msg;
@@ -61,7 +60,6 @@ class RosCom {
     rcl_subscription_t _subscriber;
     void _stepper_command_callback(const void* msg_in);
     int32_t _lastCommand = COMMAND_INVALID;
-    // uint32_t _lastPing = 0;
     // to be called by stepper for motor specific events
     RosEventCallback _rosEventCallback = nullptr;
 };

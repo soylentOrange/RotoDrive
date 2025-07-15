@@ -9,11 +9,17 @@
 
 #define TAG "RosCom"
 
+#define RCNOCHECK(fn)       \
+  {                         \
+    rcl_ret_t temp_rc = fn; \
+    (void)temp_rc;          \
+  }
+
 void RosCom::begin(Scheduler* scheduler) {
   // Task handling
   _scheduler = scheduler;
   _allocator = rcl_get_default_allocator();
-  _rosComState = RosComState::CONNECTING;
+  _rosComState = RosComState::WAITING_AGENT;
 
   // Set up a task for initializing the ros-communication
   Task* initROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
@@ -28,40 +34,95 @@ void RosCom::end() {
     _spinROSTask = nullptr;
   }
 
-  //   // Stop the checking tast task
-  //   if (_checkROSTask != nullptr) {
-  //     _checkROSTask->disable();
-  //     _checkROSTask = nullptr;
-  //   }
-  _rosComState = RosComState::UNKNOWN;
+  rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+  (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+  RCNOCHECK(rclc_executor_fini(&_executor));
+  RCNOCHECK(rcl_subscription_fini(&_subscriber, &_node));
+  RCNOCHECK(rcl_node_fini(&_node));
+  RCNOCHECK(rclc_support_fini(&_support));
+
+  _rosComState = RosComState::AGENT_DISCONNECTED;
   _rosEventCallback = nullptr;
 }
 
 // Initialization
 void RosCom::_initROS() {
+  // end the Task when it's already here
+  if (_spinROSTask != nullptr) {
+    _spinROSTask->disable();
+    _spinROSTask = nullptr;
+  }
 
   // possibly delay initialization if network isn't connected to WiFi
   // like programming...
   if (eventHandler.getStatusRequest()->pending()) {
-    LOGI(TAG, "Delay ROS setup");
+    LOGI(TAG, "WiFi not ready - Delay ROS setup");
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
     initDelayedROSTask->enable();
     initDelayedROSTask->waitFor(eventHandler.getStatusRequest());
     return;
   }
 
-  if (rclc_support_init(&_support, 0, NULL, &_allocator) != RCL_RET_OK) {
-    LOGI(TAG, "rclc_support_init failed: try again later...");
-    // Try again later
+  // possibly delay initialization if agent is not pingable
+  if (RMW_RET_OK != rmw_uros_ping_agent(1, 10)) {
+    LOGI(TAG, "Agent not available - Delay ROS setup");
+    _rosComState = RosComState::AGENT_DISCONNECTED;
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
     initDelayedROSTask->enableDelayed(1000);
     return;
   } else {
-    LOGI(TAG, "rclc_support_init succeeded!");
+    LOGI(TAG, "Agent is available - proceed ROS setup");
+    _rosComState = RosComState::WAITING_AGENT;
   }
 
-  if (rclc_node_init_default(&_node, "micro_ros_platformio_node", "", &_support) != RCL_RET_OK) {
+  rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
+  if (rcl_init_options_init(&init_options, _allocator) != RCL_RET_OK) {
+    LOGI(TAG, "rcl_init_options_init failed: try again later...");
+    rcutils_reset_error();
+    Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
+    initDelayedROSTask->enableDelayed(1000);
+    return;
+  }
+
+  // set DOMAIN_ID
+  if (rcl_init_options_set_domain_id(&init_options, ROS_DOMAIN_ID) != RCL_RET_OK) {
+    LOGI(TAG, "rcl_init_options_set_domain_id failed: try again later...");
+    rcutils_reset_error();
+    Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
+    initDelayedROSTask->enableDelayed(1000);
+    return;
+  }
+
+  // Setup support structure.
+  if (rclc_support_init_with_options(&_support, 0, NULL, &init_options, &_allocator) != RCL_RET_OK) {
+    LOGI(TAG, "rcl_init_options_set_domain_id failed: try again later...");
+    rcutils_reset_error();
+    Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
+    initDelayedROSTask->enableDelayed(1000);
+    return;
+  }
+
+  // Clean up initialization options
+  if (rcl_init_options_fini(&init_options) != RCL_RET_OK) {
+    LOGI(TAG, "rcl_init_options_fini failed: try again later...");
+    rcutils_reset_error();
+    rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+    (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+    rclc_support_fini(&_support);
+    // Try again later
+    Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
+    initDelayedROSTask->enableDelayed(1000);
+    return;
+  }
+
+  // Create Node
+  if (rclc_node_init_default(&_node, "rdrive_node", "", &_support) != RCL_RET_OK) {
     LOGI(TAG, "rclc_node_init_default failed: try again later...");
+    rcutils_reset_error();
+    rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+    (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+    RCNOCHECK(rcl_node_fini(&_node));
+    RCNOCHECK(rclc_support_fini(&_support));
     // Try again later
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
     initDelayedROSTask->enableDelayed(1000);
@@ -72,6 +133,12 @@ void RosCom::_initROS() {
 
   if (rclc_subscription_init_default(&_subscriber, &_node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "stepper_pan") != RCL_RET_OK) {
     LOGI(TAG, "rclc_subscription_init_default failed: try again later...");
+    rcutils_reset_error();
+    rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+    (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+    RCNOCHECK(rcl_subscription_fini(&_subscriber, &_node));
+    RCNOCHECK(rcl_node_fini(&_node));
+    RCNOCHECK(rclc_support_fini(&_support));
     // Try again later
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
     initDelayedROSTask->enableDelayed(1000);
@@ -82,6 +149,13 @@ void RosCom::_initROS() {
 
   if (rclc_executor_init(&_executor, &_support.context, 1, &_allocator) != RCL_RET_OK) {
     LOGI(TAG, "rclc_executor_init failed: try again later...");
+    rcutils_reset_error();
+    rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+    (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+    RCNOCHECK(rclc_executor_fini(&_executor));
+    RCNOCHECK(rcl_subscription_fini(&_subscriber, &_node));
+    RCNOCHECK(rcl_node_fini(&_node));
+    RCNOCHECK(rclc_support_fini(&_support));
     // Try again later
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
     initDelayedROSTask->enableDelayed(1000);
@@ -92,6 +166,13 @@ void RosCom::_initROS() {
 
   if (rclc_executor_add_subscription(&_executor, &_subscriber, &_msg, [](const void* msg_in) { roscom._stepper_command_callback(msg_in); }, ON_NEW_DATA) != RCL_RET_OK) {
     LOGI(TAG, "rclc_executor_add_subscription failed: try again later...");
+    rcutils_reset_error();
+    rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+    (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+    RCNOCHECK(rclc_executor_fini(&_executor));
+    RCNOCHECK(rcl_subscription_fini(&_subscriber, &_node));
+    RCNOCHECK(rcl_node_fini(&_node));
+    RCNOCHECK(rclc_support_fini(&_support));
     // Try again later
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
     initDelayedROSTask->enableDelayed(1000);
@@ -102,10 +183,11 @@ void RosCom::_initROS() {
 
   // Start ROS-Task
   LOGD(TAG, "starting _spinROSTask");
-  _spinROSTask = new Task(25, TASK_FOREVER, [&] { _spinROS(); }, _scheduler, false, NULL, NULL, true);
-  _spinROSTask->enableDelayed(25);
+  _spinROSTask = new Task(200, TASK_FOREVER, [&] { _spinROS(); }, _scheduler, false, NULL, NULL, true);
+  _spinROSTask->enableDelayed(1000);
 
-  _rosComState = RosComState::CONNECTED;
+  // Whishful thinking ahead
+  _rosComState = RosComState::AGENT_CONNECTED;
 
   // execute callback (from website)
   if (_rosEventCallback != nullptr) {
@@ -115,43 +197,42 @@ void RosCom::_initROS() {
     jsonMsg.shrinkToFit();
     _rosEventCallback(jsonMsg);
   }
-
-  //   // Start Subscription-check-Task
-  //   LOGD(TAG, "starting _checkROSTask");
-  //   _checkROSTask = new Task(1000, TASK_FOREVER, [&] { _checkROS(); }, _scheduler, false, NULL, NULL, true);
-  //   _checkROSTask->enableDelayed(1000);
-
-  //   // remember starting time
-  //   _lastPing = millis();
 }
 
 void RosCom::_spinROS() {
-  if (rclc_executor_spin_some(&_executor, RCL_MS_TO_NS(10)) == RCL_RET_ERROR) {
-    LOGE(TAG, "rclc_executor_spin_some failed");
+  switch (_rosComState) {
+    case RosComState::AGENT_CONNECTED: {
+      _rosComState = (RMW_RET_OK == rmw_uros_ping_agent(1, 10)) ? RosComState::AGENT_CONNECTED : RosComState::AGENT_DISCONNECTED;
+      if (_rosComState == RosComState::AGENT_CONNECTED) {
+        if (rclc_executor_spin_some(&_executor, RCL_MS_TO_NS(100)) == RCL_RET_ERROR) {
+          LOGE(TAG, "rclc_executor_spin_some failed");
+        }
+      } else {
+        LOGW(TAG, "Cannot ping agent!");
+      }
+    } break;
+    case RosComState::AGENT_DISCONNECTED: {
+      // Destroy the remains
+      LOGI(TAG, "Clean-up befor reconnecting to agent!");
+      rmw_context_t* rmw_context = rcl_context_get_rmw_context(&_support.context);
+      (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_context, 0);
+      RCNOCHECK(rclc_executor_fini(&_executor));
+      RCNOCHECK(rcl_subscription_fini(&_subscriber, &_node));
+      RCNOCHECK(rcl_node_fini(&_node));
+      RCNOCHECK(rclc_support_fini(&_support));
+      _rosComState = RosComState::WAITING_AGENT;
+
+      // Stop the _spinROS-Task (will be done in _init)
+      // Re-Init uROS (will re-start the _spinROS-Task)
+      Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
+      initDelayedROSTask->enableDelayed(1000);
+    } break;
   }
 }
-
-// // check if ros is still alive
-// void RosCom::_checkROS() {
-//   if ((millis() - _lastPing) > 1500) {
-//     LOGW(TAG, "timeout for ros-connection");
-//     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
-//     initDelayedROSTask->enableDelayed(1000);
-
-//     // Stop the spinning task
-//     if (_spinROSTask != nullptr) {
-//       _spinROSTask->disable();
-//       _spinROSTask = nullptr;
-//     }
-//   }
-// }
 
 void RosCom::_stepper_command_callback(const void* msg_in) {
   auto msg = static_cast<const std_msgs__msg__Int32*>(msg_in);
   // LOGI(TAG, "Received command: %d", msg->data);
-
-  //   // Remember time
-  //   _lastPing = millis();
 
   // only do something when the motor is ready
   if (stepper.getMotorState() == Stepper::MotorState::IDLE || stepper.getMotorState() == Stepper::MotorState::DRIVING) {
