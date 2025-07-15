@@ -82,7 +82,7 @@ void WebSite::_webSiteCallback() {
       jsonMsg["id"] = client->id();
       jsonMsg["config"]["autoHome"] = stepper.getAutoHome();
       jsonMsg["homing_state"] = stepper.getHomingState_as_string().c_str();
-      jsonMsg["ros_state"]["state"] = roscom.getRosComState_as_string().c_str();
+      // jsonMsg["ros_state"]["state"] = roscom.getRosComState_as_string().c_str();
       jsonMsg["motor_state"]["move_state"]["position"] = stepper.getCurrentPosition();
       jsonMsg["motor_state"]["move_state"]["speed"] = stepper.getCurrentSpeed();
       jsonMsg["motor_state"]["state"] = stepper.getMotorState_as_string().c_str();
@@ -159,7 +159,7 @@ void WebSite::_webSiteCallback() {
   // register event handlers to stepper
   LOGD(TAG, "register event handlers to stepper and roscom");
   stepper.listenMotorEvent([&](JsonDocument doc) { _eventCallback(doc); });
-  roscom.listenRosEvent([&](JsonDocument doc) { _eventCallback(doc); });
+  // roscom.listenRosEvent([&](JsonDocument doc) { _eventCallback(doc); });
 
   // set up a task to cleanup orphan websock-clients
   _disconnectTime = millis();

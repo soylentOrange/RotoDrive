@@ -20,7 +20,7 @@ WebSite webSite(webServer);
 LED led;
 TwaiCan canBus(CAN_TX, CAN_RX);
 Stepper stepper(canBus);
-RosCom roscom;
+// RosCom roscom;
 
 // Allow logging for app via serial
 #if defined(MYCILA_LOGGER_SUPPORT_APP)
@@ -49,6 +49,9 @@ void setup() {
 
   // Set serial transport functions for uRos
   set_microros_serial_transports(Serial);
+  if (!micro_rosso::setup( "my_node_name" )) {
+    LOGD(TAG, "FAIL micro_rosso.setup()");
+  }
 
   // Add LED-Task to Scheduler
   led.begin(&scheduler);
@@ -68,10 +71,11 @@ void setup() {
   // Add Stepper to Scheduler
   stepper.begin(&scheduler);
 
-  // Add ros to Scheduler
-  roscom.begin(&scheduler);
+  // // Add ros to Scheduler
+  // roscom.begin(&scheduler);
 }
 
 void loop() {
   scheduler.execute();
+  micro_rosso::loop();
 }

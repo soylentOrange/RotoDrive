@@ -17,7 +17,7 @@
 #include <TwaiCan.h>
 #include <WebServerAPI.h>
 #include <WebSite.h>
-#include <RosCom.h>
+#include "micro_rosso.h"
 
 // in main.cpp
 extern ESPNetwork espNetwork;
@@ -26,7 +26,7 @@ extern WebServerAPI webServerAPI;
 extern WebSite webSite;
 extern LED led;
 extern Stepper stepper;
-extern RosCom roscom;
+// extern RosCom roscom;
 
 // Allow serial logging for App
 #ifdef MYCILA_LOGGER_SUPPORT_APP
