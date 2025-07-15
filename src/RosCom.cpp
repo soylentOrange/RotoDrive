@@ -15,17 +15,44 @@
     (void)temp_rc;          \
   }
 
+static IPAddress _agent_address;
+static int _agent_port;
+
 void RosCom::begin(Scheduler* scheduler) {
   // Task handling
   _scheduler = scheduler;
   _allocator = rcl_get_default_allocator();
   _rosComState = RosComState::WAITING_AGENT;
 
+  // UDP-Connection to Agent
+  _agent_address = IPAddress(192, 168, 0, 115);
+  _agent_port = ROS_AGENT_PORT;
+
+  // Set the transport-functions
+  rmw_uros_set_custom_transport(false, NULL, cw_transport_open, cw_transport_close, cw_transport_write, cw_transport_read);
+
   // Set up a task for initializing the ros-communication
   Task* initROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
   initROSTask->enable();
   initROSTask->waitFor(webSite.getStatusRequest());
 }
+
+// void RosCom::begin(Scheduler* scheduler, IPAddress agent_ip, size_t agent_port) {
+
+//   // Task handling
+//   _scheduler = scheduler;
+//   _allocator = rcl_get_default_allocator();
+//   _rosComState = RosComState::WAITING_AGENT;
+
+//   // UDP-Connection to Agent
+//   _agent_address = agent_ip;
+//   _agent_port = agent_port;
+
+//   // Set up a task for initializing the ros-communication
+//   Task* initROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
+//   initROSTask->enable();
+//   initROSTask->waitFor(webSite.getStatusRequest());
+// }
 
 void RosCom::end() {
   // Stop the spinning task
@@ -64,7 +91,7 @@ void RosCom::_initROS() {
   }
 
   // possibly delay initialization if agent is not pingable
-  if (RMW_RET_OK != rmw_uros_ping_agent(1, 10)) {
+  if (RMW_RET_OK != rmw_uros_ping_agent(5, 100)) {
     LOGI(TAG, "Agent not available - Delay ROS setup");
     _rosComState = RosComState::AGENT_DISCONNECTED;
     Task* initDelayedROSTask = new Task(TASK_IMMEDIATE, TASK_ONCE, [&] { _initROS(); }, _scheduler, false, NULL, NULL, true);
@@ -202,7 +229,7 @@ void RosCom::_initROS() {
 void RosCom::_spinROS() {
   switch (_rosComState) {
     case RosComState::AGENT_CONNECTED: {
-      _rosComState = (RMW_RET_OK == rmw_uros_ping_agent(1, 10)) ? RosComState::AGENT_CONNECTED : RosComState::AGENT_DISCONNECTED;
+      _rosComState = (RMW_RET_OK == rmw_uros_ping_agent(5, 100)) ? RosComState::AGENT_CONNECTED : RosComState::AGENT_DISCONNECTED;
       if (_rosComState == RosComState::AGENT_CONNECTED) {
         if (rclc_executor_spin_some(&_executor, RCL_MS_TO_NS(100)) == RCL_RET_ERROR) {
           LOGE(TAG, "rclc_executor_spin_some failed");
@@ -228,6 +255,42 @@ void RosCom::_spinROS() {
       initDelayedROSTask->enableDelayed(1000);
     } break;
   }
+}
+
+bool RosCom::cw_transport_open(struct uxrCustomTransport* transport) {
+  return true == udp_client.begin(_agent_port);
+}
+
+bool RosCom::cw_transport_close(struct uxrCustomTransport* transport) {
+  udp_client.stop();
+  return true;
+}
+
+size_t RosCom::cw_transport_write(struct uxrCustomTransport* transport, const uint8_t* buf, size_t len, uint8_t* errcode) {
+  size_t sent = 0;
+  if (true == udp_client.beginPacket(_agent_address, _agent_port)) {
+    sent = udp_client.write(buf, len);
+    sent = true == udp_client.endPacket() ? sent : 0;
+  }
+
+  udp_client.flush();
+
+  return sent;
+}
+
+size_t RosCom::cw_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* errcode) {
+  int64_t start_time = uxr_millis();
+
+  while ((uxr_millis() - start_time) < ((int64_t)timeout) && udp_client.parsePacket() == 0) {
+    delay(1);
+  }
+
+  size_t available = 0;
+  if (udp_client.available()) {
+    available = udp_client.read(buf, len);
+  }
+
+  return (available > 0) ? available : 0;
 }
 
 void RosCom::_stepper_command_callback(const void* msg_in) {

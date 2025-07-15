@@ -6,7 +6,7 @@
 #include <Preferences.h>
 #include <TaskScheduler.h>
 #include <thingy.h>
-#include <micro_ros_platformio.h>
+//#include <micro_ros_platformio.h>
 
 #define TAG "Main"
 
@@ -21,6 +21,7 @@ LED led;
 TwaiCan canBus(CAN_TX, CAN_RX);
 Stepper stepper(canBus);
 RosCom roscom;
+WiFiUDP udp_client;
 
 // Allow logging for app via serial
 #if defined(MYCILA_LOGGER_SUPPORT_APP)
@@ -34,6 +35,7 @@ Mycila::Logger* webLogger = nullptr;
 #endif
 
 void setup() {
+  #ifdef MYCILA_LOGGER_SUPPORT_APP
   // Start Serial or USB-CDC
   #if !ARDUINO_USB_CDC_ON_BOOT
   Serial.begin(MONITOR_SPEED);
@@ -47,8 +49,10 @@ void setup() {
   // Note: Enabling Debug via USB-CDC is handled via framework
   #endif
 
-  // Set serial transport functions for uRos
-  set_microros_serial_transports(Serial);
+  serialLogger = new Mycila::Logger();
+  serialLogger->forwardTo(&Serial);
+  serialLogger->setLevel(ARDUHAL_LOG_LEVEL_DEBUG);
+#endif
 
   // Add LED-Task to Scheduler
   led.begin(&scheduler);
@@ -68,7 +72,7 @@ void setup() {
   // Add Stepper to Scheduler
   stepper.begin(&scheduler);
 
-  // Add ros to Scheduler
+  // Add uRos to Scheduler
   roscom.begin(&scheduler);
 }
 

@@ -39,6 +39,7 @@ class RosCom {
 
   public:
     RosCom() {}
+    // void begin(Scheduler* scheduler, IPAddress agent_ip, size_t agent_port);
     void begin(Scheduler* scheduler);
     void end();
     RosComState getRosComState() { return _rosComState; }
@@ -62,4 +63,9 @@ class RosCom {
     int32_t _lastCommand = COMMAND_INVALID;
     // to be called by stepper for motor specific events
     RosEventCallback _rosEventCallback = nullptr;
+    // Transport Callbacks
+    static bool cw_transport_open(struct uxrCustomTransport* transport);
+    static bool cw_transport_close(struct uxrCustomTransport* transport);
+    static size_t cw_transport_write(struct uxrCustomTransport* transport, const uint8_t* buf, size_t len, uint8_t* errcode);
+    static size_t cw_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* errcode);
 };
