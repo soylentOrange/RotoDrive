@@ -239,12 +239,12 @@ void RosCom::_initROS() {
 
   // Start Spinning-Task
   LOGD(TAG, "starting _spinROSTask");
-  _spinROSTask = new Task(100, TASK_FOREVER, [&] { _spinROS(); }, _scheduler, false, NULL, NULL, true);
+  _spinROSTask = new Task(ROS_SPINNING_INTERVALL, TASK_FOREVER, [&] { _spinROS(); }, _scheduler, false, NULL, NULL, true);
   _spinROSTask->enableDelayed(10);
 
   // Start _publishPosTask-Task
   LOGD(TAG, "starting _publishPosTask");
-  _publishPosTask = new Task(100, TASK_FOREVER, [&] { _publishPosCallback(); }, _scheduler, false, NULL, NULL, true);
+  _publishPosTask = new Task(20, TASK_FOREVER, [&] { _publishPosCallback(); }, _scheduler, false, NULL, NULL, true);
   _publishPosTask->enableDelayed(20);
 
   // Whishful thinking ahead
@@ -262,7 +262,7 @@ void RosCom::_initROS() {
 
 void RosCom::_spinROS() {
   if (_rosComState == RosComState::AGENT_CONNECTED) {
-    if (rclc_executor_spin_some(&_executor, RCL_MS_TO_NS(50)) == RCL_RET_ERROR) {
+    if (rclc_executor_spin_some(&_executor, RCL_MS_TO_NS(ROS_SPINNING_TIMEOUT)) == RCL_RET_ERROR) {
       LOGE(TAG, "rclc_executor_spin_some failed");
     }
   }
