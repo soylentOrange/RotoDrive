@@ -53,12 +53,18 @@ class RosCom {
     void _initROS();
     Task* _spinROSTask = nullptr;
     void _spinROS();
+    Task* _checkAgentTask = nullptr;
+    void _checkAgentCallback();
+    Task* _publishPosTask = nullptr;
+    void _publishPosCallback();
     rcl_allocator_t _allocator;
     rclc_support_t _support;
-    std_msgs__msg__Int32 _msg;
+    std_msgs__msg__Int32 _msg_rx;
+    std_msgs__msg__Int32 _msg_tx;
     rclc_executor_t _executor;
     rcl_node_t _node;
     rcl_subscription_t _subscriber;
+    rcl_publisher_t _publisher;
     void _stepper_command_callback(const void* msg_in);
     int32_t _lastCommand = COMMAND_INVALID;
     // to be called by stepper for motor specific events

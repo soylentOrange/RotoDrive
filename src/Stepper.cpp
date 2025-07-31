@@ -409,6 +409,10 @@ void Stepper::move_Feedback(uint8_t result) {
       _motorState = MotorState::IDLE;
       led.setMode(LED::LEDMode::IDLE);
 
+      // Update the position and speed
+      MKSServoCAN::readEncoderAdd(CAN_ID);
+      MKSServoCAN::readSpeed(CAN_ID);
+
       // send websock event
       if (_motorEventCallback != nullptr) {
         JsonDocument jsonMsg;
